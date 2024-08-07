@@ -15,9 +15,11 @@ const pool = new pg.Pool({
   password: process.env.DATABASE_PASSWORD,
   port: process.env.DATABASE_PORT,
   ssl: {
-    rejectUnauthorized:true
+    rejectUnauthorized: true
   }
 });
+
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD; 
 
 app.get('/api/versions', async (req, res) => {
   const partNumber = req.query.partNumber;
@@ -25,11 +27,34 @@ app.get('/api/versions', async (req, res) => {
     const result = await pool.query('SELECT * FROM versions WHERE $1 = ANY(part_numbers)', [partNumber]);
     res.json(result.rows);
   } catch (error) {
+    console.error('Fehler bei der Datenbankabfrage:', error);
+    res.status(500).json({ error: 'Interner Serverfehler' });
+  }
+});
+
+app.post('/api/versions', async (req, res) => {
+  const { versionNumber, partNumbers, downloadLink, password } = req.body;
+
+  if (password !== ADMIN_PASSWORD) {
+    return res.status(401).json({ error: 'Password invalid' });
+  }
+
+  try {
+    const result = await pool.query(
+      'INSERT INTO versions (version_number, download_link, part_numbers) VALUES ($1, $2, $3)',
+      [versionNumber, downloadLink, partNumbers.split(',')]
+    );
+    res.json({ message: 'Added successful' });
+  } catch (error) {
     console.error('Error while speaking to database:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
+process.on('exit', () => {
+  pool.end();
+});
+
 app.listen(port, () => {
-  console.log(`Tuurrrnn UP`);
+  console.log(`Tuuuurnn UP`);
 });
